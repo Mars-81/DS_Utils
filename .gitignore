@@ -1,0 +1,12 @@
+# Project place file
+/DS_Util.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+sourcemap.json
+README.md
+rokit.toml
+selene.toml
+default.project.json
