@@ -1,6 +1,6 @@
 -- config file for the DS_Util module, if unusued a default config will be used
 
-type DataStoreConfig = {
+export type DataStoreConfig = {
     Name: string,
     RetryOnFailure: boolean?,
     CacheResults: boolean?,
@@ -15,6 +15,7 @@ type ErrorOut = {
 
 local Config = {
     DataStores = {
+        -- the first datastore is used as a default if a datastore isnt specified in a function, so ensure atleast 1 real datastore exists or else you could lose some functionality --
         ExampleDataStore = {
             Name = "ExampleDataStore",
             retryOnFailure = true,
@@ -25,8 +26,14 @@ local Config = {
     Error = {
         PrintMessage = true,
         LogToStore = false,
-        StoreLogTo = "ExampleDataStore",
-        KeyToStore = "ErrorLog",
+        StoreLogTo = "ExampleErrorDataStore", -- to help with not throttling other datastores, I recomend using a dedicated datastore or not logging errors in a datastore
+        ErrorCacheTime = 30, -- seconds
+    },
+    Cache = {
+        CacheAutoClean = true, -- if true caching is enabled
+        MaxCacheSize = 50, -- max number of entries in cache, do keep in mind if you have large CacheTimes then it cant clean it if you create alot of them
+
+        CacheSize = 0, -- do not edit, used for tracking current cache size 
     }
 }
 

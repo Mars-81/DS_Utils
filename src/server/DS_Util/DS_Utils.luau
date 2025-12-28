@@ -1,31 +1,36 @@
 local DataStoreService = game:GetService("DataStoreService")
 local Config = require(script.Parent.Config)
 
-type DataStoreConfig = {
-	Name: string,
-	RetryOnFailure: boolean?,
-	CacheResults: boolean?,
-	CacheTime: number? -- seconds
-} 
+type CacheEntry = {
+	Value: any?,
+	MetaValue: any?,
+	TimeStamp: number,
+	CacheTime: number
+}
 
-local Cache: { [string]: { Data: any, TimeStamp: DateTime?, TimeToCache: number? } } = {}
+local Cache = {} :: {[string]: CacheEntry}
 
 local function LogError(_message: string, _Data:any): () end
+local function GetCache(_Name: string): () end
+local function SetCache(_Name: string, _Value: any, _MetaValue: any, _TimeToCache: number): () end
+local function ValidateCache(): () end
 
 local DS_Util = {
 	-- Logs and error if configured to log errors --
 	LogError = function(message: string, Data: any): () 
-		if Cache["LastError"] and Cache["LastError"].Data == message then
+		local LastError: CacheEntry? = GetCache("LastError")
+		if LastError and LastError.Value == Data then
 			return
 		else
-			Cache["LastError"] = { Data = message, TimeStamp = nil, TimeToCache = nil }
+			LastError = nil
+			SetCache("LastError", message, nil, Config.Error.ErrorCacheTime or 30)
 		end
 		if Config.Error.LogToStore then
 			local DataStore, Key: string? = nil, nil
 			DataStore = DataStoreService:GetDataStore(
 				Config.Error.StoreLogTo or Config.DataStores[1].Name
 			)
-			Key = Config.Error.KeyToStore or "ErrorLog"
+			Key = tostring(DateTime.now():ToIsoDate())
 
 			if Key and DataStore then
 				local Success, Err = pcall(function()
@@ -55,6 +60,7 @@ local DS_Util = {
 		end
 	end,
 	-- wraps "GetUserIdFromNameAsync()" --
+	-- will cache a key as the players name if caching is configured --
 	GetPlayerKeyFromName = function(Name: string): number?
 		local PlayerService = game:GetService("Players")
 		local Key: number?
@@ -62,6 +68,9 @@ local DS_Util = {
 			Key = PlayerService:GetUserIdFromNameAsync(Name)
 		end)
 		if sucess and Key then
+			if Config.DataStores[next(Config.DataStores)] and Config.DataStores[next(Config.DataStores)].CacheResults then
+				SetCache(Name, Key, nil, Config.DataStores[next(Config.DataStores)].CacheTime or 5)
+			end
 			return Key
 		else
 			LogError("GetPlayerKeyFromName failed for name: " .. Name, err)
@@ -72,7 +81,8 @@ local DS_Util = {
 	-- DataStore data functions --
 
 	-- Returns specified data type from a key, returns nill on error --
-	ReturnData = function(DataStore: DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): (any?, any?)
+	-- caches data with the key if caching is configured
+	ReturnData = function(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): (any?, any?)
 		if not DataStore or not Config.DataStores[next(Config.DataStores)] then
 			LogError("ReturnData failed: No DataStores configured", nil)
 			return
@@ -98,10 +108,19 @@ local DS_Util = {
 					MetaReturn = metaData:GetMetadata()
 				end
 				if Type == "All" then
+					if DataStore.CacheResults or Config.DataStores[next(Config.DataStores)].CacheResults then
+						SetCache(tostring(Key), valueData, MetaReturn, DataStore.CacheTime or Config.DataStores[next(Config.DataStores)].cacheTime)
+					end
 					return valueData, MetaReturn
 				elseif Type == "Value" then
+					if DataStore.CacheResults or Config.DataStores[next(Config.DataStores)].CacheResults then
+						SetCache(tostring(Key), valueData, nil, DataStore.CacheTime or Config.DataStores[next(Config.DataStores)].cacheTime)
+					end
 					return valueData
 				elseif Type == "Metadata" then
+					if DataStore.CacheResults or Config.DataStores[next(Config.DataStores)].CacheResults then
+						SetCache(tostring(Key), MetaReturn, nil, DataStore.CacheTime or Config.DataStores[next(Config.DataStores)].cacheTime)
+					end
 					return MetaReturn
 				else
 					LogError("ReturnData failed: Bad Data type specified", nil)
@@ -121,13 +140,22 @@ local DS_Util = {
 							MetaReturn = MetaData:GetMetadata()
 						end
 						if Type == "All" then
+							if DataStore.CacheResults or Config.DataStores[next(Config.DataStores)].CacheResults then
+								SetCache(tostring(Key), ValueData, MetaReturn, DataStore.CacheTime or Config.DataStores[next(Config.DataStores)].cacheTime)
+							end
 							return ValueData, MetaReturn
 						elseif Type == "Value" then
+							if DataStore.CacheResults or Config.DataStores[next(Config.DataStores)].CacheResults then
+								SetCache(tostring(Key), ValueData, nil, DataStore.CacheTime or Config.DataStores[next(Config.DataStores)].cacheTime)
+							end
 							return ValueData
 						elseif Type == "Metadata" then
+							if DataStore.CacheResults or Config.DataStores[next(Config.DataStores)].CacheResults then
+								SetCache(tostring(Key), MetaReturn, nil, DataStore.CacheTime or Config.DataStores[next(Config.DataStores)].cacheTime)
+							end
 							return MetaReturn
 						else
-							LogError("ReturnData failed: Bad Data type specified on retry", nil)
+							LogError("ReturnData failed: Bad Data type specified", nil)
 							return nil, nil
 						end
 					else
@@ -141,7 +169,8 @@ local DS_Util = {
 	end,
 	-- Saves provided data to key of chosen DataStore (or first in config) --
 	-- When setting all, provide a table with a "Value" and "Metadata" key --
-	SaveData = function(DataStore: DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All", Data: any): () 
+	-- caches data with the key if caching is configured --
+	SaveData = function(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All", Data: any): () 
 		if not DataStore or not Config.DataStores[next(Config.DataStores)] then
 			LogError("SaveData failed: No DataStores configured", nil)
 			return
@@ -158,16 +187,14 @@ local DS_Util = {
 		end
 
 		if Type == "Value" then
-			local FallBackMetaData = Instance.new("DataStoreSetOptions")
-			FallBackMetaData:SetMetadata({})
 			local sucess, err = pcall(function()
-				Store:UpdateAsync(tostring(Key), function(_, OldKeyInfo: DataStoreKeyInfo?)
+				Store:UpdateAsync(tostring(Key), function(_, OldKeyInfo: DataStoreKeyInfo)
 					if OldKeyInfo then
 						local OldMetaData: DataStoreSetOptions = Instance.new("DataStoreSetOptions")
 						OldMetaData:SetMetadata(OldKeyInfo:GetMetadata())
-						return Data, OldMetaData or FallBackMetaData
+						return Data, nil, OldMetaData:GetMetadata() or {}
 					else 
-						return Data, FallBackMetaData
+						return Data, nil, {}
 					end
 				end)
 			end)
@@ -179,8 +206,6 @@ local DS_Util = {
 				return
 			end
 		elseif Type == "Metadata" then
-			local FallBackMetaData = Instance.new("DataStoreSetOptions")
-			FallBackMetaData:SetMetadata({})
 			local metaDataToSave: DataStoreSetOptions = Instance.new("DataStoreSetOptions")
 			metaDataToSave:SetMetadata(Data)
 			local sucess, err = pcall(function()
@@ -188,7 +213,7 @@ local DS_Util = {
 					if metaDataToSave then
 						return OldValue, nil, metaDataToSave
 					else 
-						return OldValue, nil, FallBackMetaData
+						return OldValue, nil, {}
 					end
 				end)
 			end)
@@ -200,20 +225,16 @@ local DS_Util = {
 				return
 			end
 		elseif Type == "All" then
-			local FallBackMetaData = Instance.new("DataStoreSetOptions")
-			FallBackMetaData:SetMetadata({})
-			local metaDataToSave: DataStoreSetOptions = Instance.new("DataStoreSetOptions")
-			metaDataToSave:SetMetadata(Data.Metadata)
 			local sucess, err = pcall(function()
 				Store:UpdateAsync(tostring(Key), function(_OldValue, _: DataStoreKeyInfo?)
-					if Data and metaDataToSave then
-						return Data, nil, metaDataToSave
-					elseif Data and not metaDataToSave then
-						return Data, nil, FallBackMetaData
-					elseif metaDataToSave and not Data then
-						return _OldValue, nil, metaDataToSave
+					if Data.Value and Data.Metadata then
+						return Data.Value, nil, Data.Metadata
+					elseif Data.Value and not Data.Metadata then
+						return Data, nil, {}
+					elseif Data.MetaData and not Data then
+						return _OldValue, nil, Data.Metadata
 					else
-						return _OldValue, nil, FallBackMetaData
+						return _OldValue, nil, {}
 					end
 				end)
 			end)
@@ -231,7 +252,7 @@ local DS_Util = {
 	end,
 	-- Removes data of specified type from key --
 	-- If Type is "All" it will delete the key --
-	RemoveData = function(DataStore: DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): ()
+	RemoveData = function(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): ()
 		if not DataStore or not Config.DataStores[next(Config.DataStores)] then
 			LogError("RemoveData failed: No DataStores configured", nil)
 			return
@@ -327,11 +348,76 @@ local DS_Util = {
 			return
 		end
 	end,
+
+	-- cache functions --
+
+	-- Adds a key to the cache --
+	AddKey = function(Key: string, Value: any, MetaValue: any, TimeToCache: number): ()
+		if Config.Cache.MaxCacheSize and Config.Cache.CacheSize > Config.Cache.MaxCacheSize then
+			ValidateCache()
+		end
+		
+		Cache[Key] = {
+			Value = Value,
+			MetaValue = MetaValue,
+			TimeStamp = os.clock(),
+			CacheTime = math.max(0, TimeToCache or 1)
+		}
+		Config.Cache.CacheSize = Config.Cache.CacheSize + 1
+	end,
+
+	-- Retrieves cached key if it exists and is valid --
+	GetKey = function(Key: string): CacheEntry?
+		local CacheEntry: CacheEntry? = Cache[Key]
+		if CacheEntry then
+			if os.clock() - CacheEntry.TimeStamp <= CacheEntry.CacheTime then
+				return CacheEntry
+			else
+				Config.Cache.CacheSize = Config.Cache.CacheSize - 1
+				Cache[Key] = nil
+				return nil
+			end
+		else
+			return nil
+		end
+	end,
+
+	-- clears a specific key from the cache --
+	RemoveKey = function(Key: string): ()
+		Cache[Key] = nil
+	end,
+
+	-- Clears entire cache --
+	ClearCache = function(): ()
+		table.clear(Cache)
+	end,
+
+	-- validates all keys in cache --
+	ValidateCache = function(): ()
+		local now = os.clock()
+		for Key, Entry in pairs(Cache) do
+			if now - Entry.TimeStamp > Entry.CacheTime then
+				Config.Cache.CacheSize = Config.Cache.CacheSize - 1
+				Cache[Key] = nil
+			end
+		end
+	end,
 }
 
 LogError = function(message: string, Data: any): () 
 	DS_Util.LogError(message, Data)
 end
 
+GetCache = function(Name: string): CacheEntry?
+	return DS_Util.GetKey(Name)
+end
+
+SetCache = function(_Name, _Value, _MetaValue, _TimeToCache) : ()
+	DS_Util.AddKey(_Name, _Value, _MetaValue, _TimeToCache)
+end
+
+ValidateCache = function(): ()
+	DS_Util.ValidateCache()
+end
 
 return DS_Util 
