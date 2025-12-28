@@ -64,4 +64,28 @@ The Config requires that you have a table section named "Cache" which needs to l
 The cache config allows for you to let it auto clean whenever it goes above a set number of caches, this cleaning only happens when you add a new cache to the cache if it is too large, MaxCacheSize lets you set how many caches you're fine with saving at a time. **The auto clean only clears out old caches, if you create lots of long lived caches it will not be able to clear those out,** also leave CacheSize untouched as it is for the module script to see how large the cache is to know when to clean the cache.
 
 ## Wrapped DataStore Functions
+
+### LogError
+Logs error based on its config with the option to log errors to a DataStore and/or the Developer Console, it takes the input of a message as a string and data as an any type with no return data
+
+        LogError(message: string, Data: any): ()
+
+### GetPlayerIdFromName
+
+### ReturnData
+
+### SaveData
+
+### RemoveData
+
 ## Caching
+
+### AddKey
+
+### GetKey
+
+### RemoveKey
+
+### ClearCache
+
+### ValidateCache
