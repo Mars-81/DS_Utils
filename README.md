@@ -68,36 +68,36 @@ The cache config allows for you to let it auto clean whenever it goes above a se
 ### LogError
 Logs error based on its config with the option to log errors to a DataStore and/or the Developer Console, it takes the input of a message as a string and data as an any type with no return data
 
-        LogError(message: string, Data: any): ()
+    LogError(message: string, Data: any): ()
 
 ### GetPlayerIdFromName
 wraps GetUserIdFromNameAsync and will cache a key as the players name if caching is configured
 
-        GetPlayerIdFromName(Name: string): number?
+    GetPlayerIdFromName(Name: string): number?
 
 ### ReturnData
 Returns specified data type from a key, and returns nill on error. It caches data with the key if caching is configured.
 
-        ReturnData(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): (any?, any?)
+    ReturnData(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): (any?, any?)
 
 ### SaveData
 Saves provided data to key of chosen DataStore (or first in config), When setting all, provide a table with a "Value" and "Metadata" key otherwise just pass in the data you want to save. This function caches data with the key if caching is configured, first table is a good input for a save all function, second is the function call guide:
 
-        local AllData = {
-                Value = 100
-                Metadata = {
-                    SaveDate = os.clock()
-                    ExpireData = os.clock() + 150
-                }
+    local AllData = {
+        Value = 100
+        Metadata = {
+            SaveDate = os.clock()
+            ExpireData = os.clock() + 150
         }
+    }
 
-        SaveData(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All", Data: any): ()
+    SaveData(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All", Data: any): ()
     
 
 ### RemoveData
 Removes data of specified type from key, if Type is "All" it will delete the key, Value type data gets replaced with useless data
 
-        RemoveData(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): ()
+    RemoveData(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): ()
 
 ## Caching
 
