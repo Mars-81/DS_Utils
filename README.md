@@ -76,7 +76,7 @@ wraps GetUserIdFromNameAsync and will cache a key as the players name if caching
     GetPlayerIdFromName(Name: string): number?
 
 ### ReturnData
-Returns specified data type from a key, and returns nill on error. It caches data with the key if caching is configured.
+Returns specified data type from a key, when specifying "All" it returns 2 values but only one for "Value" or "Metadata" type, and returns nill on error. It caches data with the key if caching is configured.
 
     ReturnData(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): (any?, any?)
 
@@ -100,13 +100,36 @@ Removes data of specified type from key, if Type is "All" it will delete the key
     RemoveData(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): ()
 
 ## Caching
+While generally meant for caching data from DS_Utils functions, all of the functions it needs to run are able to be used through the DS_Utils Modulescript, if you plan on wanting to use caching outside of DS_Utils I have the documentation provided for its usage below.
 
 ### AddKey
+Adds a key to the cache and if CacheAutoClean is set to true it will clean the cache if it is above the set MaxCacheSize before adding a new key to the cache.
+
+        AddKey(Key: string, Value: any, MetaValue: any, TimeToCache: number): ()
 
 ### GetKey
+Returns a Cache entry if there is a key matching the input key value, if the cache entry it would return is old too old (past expiration time) it will instead delete it and return nil, it will also return nil if a cache with that key does not exist. The first code segment is a CacheEntry type value which will be returned by GetKey, the second is the function call guide.
+
+    export type CacheEntry = {
+	    Value: any?,
+    	MetaValue: any?,
+	    TimeStamp: number,
+    	CacheTime: number
+    }
+
+    GetKey(Key: string): CacheEntry?
 
 ### RemoveKey
+clears a specific key from the cache if it exists, will not log an error if a cache value does not exist
+
+    RemoveKey(Key: string): ()
 
 ### ClearCache
+Clears the entire cach
+
+    ClearCache(): ()
 
 ### ValidateCache
+Checks all of the keys in the cache and delete keys that are old 
+
+    ValidateCache(): ()
