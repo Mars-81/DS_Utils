@@ -56,7 +56,9 @@ The Config requires that you have a table section named "Cache" which needs to l
 
     Cache = {
         CacheAutoClean: boolean,
+		
         MaxCacheSize: number, 
+
 
         CacheSize = 0, 
     }
@@ -87,6 +89,7 @@ Saves provided data to key of chosen DataStore (or first in config), When settin
         Value = 100
         Metadata = {
             SaveDate = os.clock()
+			
             ExpireData = os.clock() + 150
         }
     }
@@ -112,9 +115,12 @@ Returns a Cache entry if there is a key matching the input key value, if the cac
 
     export type CacheEntry = {
 	    Value: any?,
+		
     	MetaValue: any?,
-	    TimeStamp: number,
-    	CacheTime: number
+
+		TimeStamp: number,
+    	
+		CacheTime: number
     }
 
     GetKey(Key: string): CacheEntry?
