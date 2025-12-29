@@ -105,7 +105,7 @@ While generally meant for caching data from DS_Utils functions, all of the funct
 ### AddKey
 Adds a key to the cache and if CacheAutoClean is set to true it will clean the cache if it is above the set MaxCacheSize before adding a new key to the cache.
 
-        AddKey(Key: string, Value: any, MetaValue: any, TimeToCache: number): ()
+    AddKey(Key: string, Value: any, MetaValue: any, TimeToCache: number): ()
 
 ### GetKey
 Returns a Cache entry if there is a key matching the input key value, if the cache entry it would return is old too old (past expiration time) it will instead delete it and return nil, it will also return nil if a cache with that key does not exist. The first code segment is a CacheEntry type value which will be returned by GetKey, the second is the function call guide.
