@@ -1,7 +1,7 @@
 local DataStoreService = game:GetService("DataStoreService")
 local Config = require(script.Parent.Config)
 
-type CacheEntry = {
+export type CacheEntry = {
 	Value: any?,
 	MetaValue: any?,
 	TimeStamp: number,
@@ -23,7 +23,9 @@ local DS_Util = {
 			return
 		else
 			LastError = nil
-			SetCache("LastError", message, nil, Config.Error.ErrorCacheTime or 30)
+			if Config.Error.CacheErrors then
+				SetCache("LastError", message, nil, Config.Error.ErrorCacheTime or 30)
+			end
 		end
 		if Config.Error.LogToStore then
 			local DataStore, Key: string? = nil, nil
@@ -61,7 +63,13 @@ local DS_Util = {
 	end,
 	-- wraps "GetUserIdFromNameAsync()" --
 	-- will cache a key as the players name if caching is configured --
-	GetPlayerKeyFromName = function(Name: string): number?
+	GetPlayerIdFromName = function(Name: string): number?
+		if Config.DataStores[next(Config.DataStores)] and Config.DataStores[next(Config.DataStores)].CacheResults then
+			local CacheEntry: CacheEntry? = GetCache(Name)
+			if CacheEntry then
+				return CacheEntry.Value
+			end
+		end
 		local PlayerService = game:GetService("Players")
 		local Key: number?
 		local sucess, err = pcall(function()
@@ -81,8 +89,9 @@ local DS_Util = {
 	-- DataStore data functions --
 
 	-- Returns specified data type from a key, returns nill on error --
-	-- caches data with the key if caching is configured
+	-- caches data with the key if caching is configured --
 	ReturnData = function(DataStore: Config.DataStoreConfig?, Key: string | number, Type: "Value" | "Metadata" | "All"): (any?, any?)
+		
 		if not DataStore or not Config.DataStores[next(Config.DataStores)] then
 			LogError("ReturnData failed: No DataStores configured", nil)
 			return
@@ -97,6 +106,16 @@ local DS_Util = {
 			LogError("ReturnData failed: DataStore is nil", nil)
 			return
 		else 
+			if (Config.DataStores[next(Config.DataStores)] and Config.DataStores[next(Config.DataStores)].CacheResults) or (DataStore and DataStore.CacheResults) then
+				local CacheEntry: CacheEntry? = GetCache(tostring(Key))
+				if CacheEntry then
+					if Type == "Value" or Type == "Metadata" then
+						return CacheEntry.Value
+					elseif Type == "All" then
+						return CacheEntry.Value, CacheEntry.MetaValue
+					end
+				end
+			end
 			local sucess, valueData, metaData: DataStoreKeyInfo = pcall(function()
 				return Store:GetAsync(tostring(Key))
 			end)
@@ -190,6 +209,7 @@ local DS_Util = {
 			local sucess, err = pcall(function()
 				Store:UpdateAsync(tostring(Key), function(_, OldKeyInfo: DataStoreKeyInfo)
 					if OldKeyInfo then
+						-- this may need to be fixed, work with this in a little bit
 						local OldMetaData: DataStoreSetOptions = Instance.new("DataStoreSetOptions")
 						OldMetaData:SetMetadata(OldKeyInfo:GetMetadata())
 						return Data, nil, OldMetaData:GetMetadata() or {}
@@ -206,12 +226,10 @@ local DS_Util = {
 				return
 			end
 		elseif Type == "Metadata" then
-			local metaDataToSave: DataStoreSetOptions = Instance.new("DataStoreSetOptions")
-			metaDataToSave:SetMetadata(Data)
 			local sucess, err = pcall(function()
 				Store:UpdateAsync(tostring(Key), function(OldValue, _: DataStoreKeyInfo?)
-					if metaDataToSave then
-						return OldValue, nil, metaDataToSave
+					if Data then
+						return OldValue, nil, {Data}
 					else 
 						return OldValue, nil, {}
 					end
@@ -269,15 +287,14 @@ local DS_Util = {
 		end
 
 		if Type == "Value" then
-			local _sucess, _valueData, metaData: DataStoreKeyInfo = pcall(function()
-				return Store:GetAsync(tostring(Key))
-			end)
-			local MetaSave: any
-			if not metaData then MetaSave = {} else MetaSave = metaData:GetMetadata() end
-			local metaDataToSave: DataStoreSetOptions = Instance.new("DataStoreSetOptions")
-			metaDataToSave:SetMetadata(MetaSave)
 			local success, err = pcall(function()
-				Store:SetAsync(tostring(Key), nil, nil, metaDataToSave)
+				Store:UpdateAsync(tostring(Key), function(_, OldKeyInfo: DataStoreKeyInfo)
+					if OldKeyInfo then
+						return {}, nil, OldKeyInfo:GetMetadata() or {}
+					else 
+						return {}, nil, {}
+					end
+				end)
 			end)
 			if success then
 				return
@@ -285,7 +302,13 @@ local DS_Util = {
 				LogError("Error deleting player data: ", err)
 				if not next(Config.DataStores) and not DataStore then
 					local _success, _err = pcall(function()
-						Store:SetAsync(tostring(Key), nil, nil, metaDataToSave)
+						Store:UpdateAsync(tostring(Key), function(_, OldKeyInfo: DataStoreKeyInfo)
+							if OldKeyInfo then
+								return {}, nil, OldKeyInfo:GetMetadata() or {}
+							else 
+								return {}, nil, {}
+							end
+						end)
 					end)
 					if _success then
 						return
@@ -297,21 +320,20 @@ local DS_Util = {
 				return
 			end
 		elseif Type == "Metadata" then
-			local _sucess, valueData, _metaData = pcall(function()
-				return Store:GetAsync(tostring(Key))
+			local success, err = pcall(function()
+				Store:UpdateAsync(tostring(Key), function(valueData, _: DataStoreKeyInfo)
+						return valueData, nil, {}
+				end)
 			end)
-			local metaDataToSave: DataStoreSetOptions = Instance.new("DataStoreSetOptions")
-			metaDataToSave:SetMetadata({})
-			local sucess, err = pcall(function()
-				Store:SetAsync(tostring(Key), valueData, nil, metaDataToSave)
-			end)
-			if sucess then
+			if success then
 				return
 			else
 				LogError("Error deleting player metadata: ", err)
 				if (DataStore and DataStore.RetryOnFailure) or (Config.DataStores[next(Config.DataStores)].retryOnFailure) then
 					local _success, _err = pcall(function()
-						Store:SetAsync(tostring(Key), valueData, nil, metaDataToSave)
+						Store:UpdateAsync(tostring(Key), function(valueData, _: DataStoreKeyInfo)
+								return valueData, nil, {}
+						end)
 					end)
 					if _success then
 						return

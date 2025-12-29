@@ -27,6 +27,7 @@ local Config = {
         PrintMessage = true,
         LogToStore = false,
         StoreLogTo = "ExampleErrorDataStore", -- to help with not throttling other datastores, I recomend using a dedicated datastore or not logging errors in a datastore
+        CacheErrors = true,
         ErrorCacheTime = 30, -- seconds
     },
     Cache = {
