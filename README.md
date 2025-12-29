@@ -88,7 +88,7 @@ Saves provided data to key of chosen DataStore (or first in config), When settin
     local AllData = {
         Value = 100
         Metadata = {
-            SaveDate = os.clock()
+            SaveDate = os.clock(),
 			
             ExpireData = os.clock() + 150
         }
